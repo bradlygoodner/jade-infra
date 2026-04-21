@@ -328,12 +328,62 @@ def _execute_pending_push(env: dict, item: dict, dry_run: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stop subcommand (placeholder — added in Task 5)
+# Stop subcommand
 # ---------------------------------------------------------------------------
 
 
+def do_stop(env: dict, dry_run: bool = False) -> None:
+    if not SESSION_LOG_FILE.exists() or not SESSION_LOG_FILE.read_text().strip():
+        return
+    try:
+        _push_session_log(env, dry_run)
+    except Exception as exc:
+        error_msg = f"{datetime.now(timezone.utc).isoformat()}: {exc}"
+        if not dry_run:
+            LAST_STOP_ERROR_FILE.write_text(error_msg)
+        print(f"[stop] Failed to push session log: {exc}", file=sys.stderr)
+
+
 def _push_session_log(env: dict, dry_run: bool, recovered: bool = False) -> None:
-    pass
+    log_content = SESSION_LOG_FILE.read_text().strip()
+    if not log_content:
+        return
+
+    log_lines = log_content.splitlines()
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")[:8]
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    block = format_log_block(log_lines, session_id, date_str)
+    if recovered:
+        block = "[recovered from incomplete prior session]\n" + block
+
+    base_url = env["BASEROW_BASE_URL"]
+    token = env["BASEROW_TOKEN"]
+    jade_table = int(env["JADE_OPS_TABLE_ID"])
+    row_id = int(env["SESSION_LOG_ROW_ID"])
+
+    current_row = get_row(base_url, jade_table, row_id, token)
+    current_version = current_row.get("version", 1)
+    current_content = current_row.get("content", "")
+
+    new_content = block + "\n\n---\n\n" + current_content
+
+    if not dry_run:
+        patch_row(
+            base_url,
+            jade_table,
+            row_id,
+            token,
+            {
+                "content": new_content,
+                "version": current_version + 1,
+                "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            },
+        )
+        SESSION_LOG_FILE.unlink()
+    else:
+        print("[dry-run] Would prepend to session log:")
+        print(block)
 
 
 def main():
@@ -347,7 +397,7 @@ def main():
     if args.command == "pull":
         do_pull(env, dry_run=args.dry_run)
     elif args.command == "stop":
-        print("stop: not yet implemented")
+        do_stop(env, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

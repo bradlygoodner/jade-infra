@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -448,3 +449,124 @@ def test_do_pull_dry_run_writes_no_files(tmp_path, monkeypatch):
         sync.do_pull(env, dry_run=True)
 
     assert not pull_dir.exists()
+
+
+# --- do_stop ---
+
+FAKE_SESSION_LOG_ROW = {
+    "id": 7,
+    "key": "06-session-log",
+    "version": 33,
+    "last_updated": "2026-04-11",
+    "content": "Previous session content here.",
+}
+
+
+def test_do_stop_does_nothing_when_log_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "session-log.txt")
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "SESSION_LOG_ROW_ID": "7",
+    }
+    with patch("sync.get_row") as mock_get, patch("sync.patch_row") as mock_patch:
+        sync.do_stop(env)
+    mock_get.assert_not_called()
+    mock_patch.assert_not_called()
+
+
+def test_do_stop_prepends_block_to_row7(tmp_path, monkeypatch):
+    log_file = tmp_path / "session-log.txt"
+    log_file.write_text("2026-04-21T03:00:00Z|task|Fixed Redis AOF\n")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", log_file)
+    monkeypatch.setattr(sync, "LAST_STOP_ERROR_FILE", tmp_path / "last-stop-error.log")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "SESSION_LOG_ROW_ID": "7",
+    }
+
+    with (
+        patch("sync.get_row", return_value=FAKE_SESSION_LOG_ROW),
+        patch("sync.patch_row") as mock_patch,
+        patch.dict(os.environ, {"CLAUDE_SESSION_ID": "abc12345xyz"}),
+    ):
+        sync.do_stop(env)
+
+    assert mock_patch.called
+    patch_data = mock_patch.call_args[0][4]  # positional arg 'data'
+    assert "Claude Code (VPS)" in patch_data["content"]
+    assert "Fixed Redis AOF" in patch_data["content"]
+    assert "Previous session content here." in patch_data["content"]
+    assert patch_data["version"] == 34  # was 33, now 34
+
+
+def test_do_stop_truncates_log_after_push(tmp_path, monkeypatch):
+    log_file = tmp_path / "session-log.txt"
+    log_file.write_text("2026-04-21T03:00:00Z|task|Something\n")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", log_file)
+    monkeypatch.setattr(sync, "LAST_STOP_ERROR_FILE", tmp_path / "last-stop-error.log")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "SESSION_LOG_ROW_ID": "7",
+    }
+
+    with (
+        patch("sync.get_row", return_value=FAKE_SESSION_LOG_ROW),
+        patch("sync.patch_row"),
+        patch.dict(os.environ, {"CLAUDE_SESSION_ID": "abc12345xyz"}),
+    ):
+        sync.do_stop(env)
+
+    assert not log_file.exists()
+
+
+def test_do_stop_dry_run_does_not_patch(tmp_path, monkeypatch):
+    log_file = tmp_path / "session-log.txt"
+    log_file.write_text("2026-04-21T03:00:00Z|task|Dry run task\n")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", log_file)
+    monkeypatch.setattr(sync, "LAST_STOP_ERROR_FILE", tmp_path / "last-stop-error.log")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "SESSION_LOG_ROW_ID": "7",
+    }
+
+    with (
+        patch("sync.get_row", return_value=FAKE_SESSION_LOG_ROW),
+        patch("sync.patch_row") as mock_patch,
+        patch.dict(os.environ, {"CLAUDE_SESSION_ID": "abc12345xyz"}),
+    ):
+        sync.do_stop(env, dry_run=True)
+
+    mock_patch.assert_not_called()
+    assert log_file.exists()  # not deleted in dry-run
+
+
+def test_do_stop_writes_error_log_on_failure(tmp_path, monkeypatch):
+    log_file = tmp_path / "session-log.txt"
+    log_file.write_text("2026-04-21T03:00:00Z|task|Something\n")
+    error_log = tmp_path / "last-stop-error.log"
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", log_file)
+    monkeypatch.setattr(sync, "LAST_STOP_ERROR_FILE", error_log)
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "SESSION_LOG_ROW_ID": "7",
+    }
+
+    with patch("sync.get_row", side_effect=Exception("Network error")):
+        sync.do_stop(env)  # should not raise
+
+    assert error_log.exists()
+    assert log_file.exists()  # preserved so next session can recover
