@@ -1,0 +1,25 @@
+services:
+
+  # ── Watchtower (monitor-only) ────────────────────────────────────────────────
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: propertyops-watchtower
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      DOCKER_API_VERSION: "1.45"
+      WATCHTOWER_MONITOR_ONLY: "true"
+      WATCHTOWER_SCHEDULE: "0 0 */6 * * *"
+      WATCHTOWER_NOTIFICATIONS: "shoutrrr"
+      WATCHTOWER_NOTIFICATION_URL: "generic+http://propertyops-n8n:5678/webhook/watchtower-update"
+      WATCHTOWER_CLEANUP: "false"
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - jade_shared
+
+networks:
+  jade_shared:
+    external: true
+    name: jade_shared

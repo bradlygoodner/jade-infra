@@ -1,0 +1,28 @@
+services:
+
+  # ── n8n ───────────────────────────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: propertyops-n8n
+    user: "1000:1000"
+    restart: unless-stopped
+    mem_limit: 2g
+    env_file: .env
+    volumes:
+      - ${DOCKER_DATA_PATH}/n8n:/home/node/.n8n
+      - ${BACKUP_HOST_PATH:-/root/docker/backups}:/root/docker/backups:ro
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - jade_shared
+
+networks:
+  jade_shared:
+    external: true
+    name: jade_shared

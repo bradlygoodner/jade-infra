@@ -1,0 +1,17 @@
+[Unit]
+Description=PropertyOps Service Health Monitor
+Documentation=file:///opt/jade-infra/docs/superpowers/specs/2026-04-07-service-health-monitor-design.md
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/jade-infra/scripts/healthmonitor.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=propertyops-healthmonitor
+
+[Install]
+WantedBy=multi-user.target
