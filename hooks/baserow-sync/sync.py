@@ -218,6 +218,124 @@ def create_row(base_url: str, table_id: int, token: str, data: dict) -> dict:
     return resp.json()
 
 
+# ---------------------------------------------------------------------------
+# Pull subcommand
+# ---------------------------------------------------------------------------
+
+
+def do_pull(env: dict, dry_run: bool = False) -> None:
+    base_url = env["BASEROW_BASE_URL"]
+    token = env["BASEROW_TOKEN"]
+    jade_table = int(env["JADE_OPS_TABLE_ID"])
+    plants_table = int(env["PLANTS_TABLE_ID"])
+
+    if not dry_run:
+        PULL_DIR.mkdir(parents=True, exist_ok=True)
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+    manifest = {}
+    existing_files = {f.name for f in PULL_DIR.glob("*.md")} if PULL_DIR.exists() else set()
+    seen_files = set()
+    jade_count = 0
+    plants_count = 0
+
+    for table_id, prefix in [(jade_table, "jade_ops"), (plants_table, "plants")]:
+        rows = list_rows(base_url, table_id, token)
+        for row in rows:
+            if not row.get("active"):
+                continue
+            key = row["key"]
+            filename = f"{prefix}_{key}.md"
+            seen_files.add(filename)
+
+            if not dry_run:
+                (PULL_DIR / filename).write_text(build_pull_file_content(row, table_id, prefix))
+
+            manifest[key] = {
+                "file": filename,
+                "table": table_id,
+                "row_id": row["id"],
+                "version": row.get("version", 1),
+                "last_updated": row.get("last_updated", ""),
+                "prefix": prefix,
+            }
+            if table_id == jade_table:
+                jade_count += 1
+            else:
+                plants_count += 1
+
+    # Delete orphan files (rows removed/deactivated in Baserow)
+    for filename in existing_files - seen_files:
+        if not filename.startswith(".") and not dry_run:
+            (PULL_DIR / filename).unlink(missing_ok=True)
+
+    if not dry_run:
+        MANIFEST_FILE.write_text(json.dumps(manifest, indent=2))
+
+    # Flush any leftover log from a crashed prior session
+    _flush_recovered_log(env, dry_run)
+
+    # Retry any pushes that failed during a prior session
+    _retry_pending_pushes(env, dry_run)
+
+    print(
+        f"Baserow pulled: {jade_count} rows from {jade_table}, "
+        f"{plants_count} from {plants_table}. "
+        f"See {PULL_DIR} for canonical context."
+    )
+
+
+def _flush_recovered_log(env: dict, dry_run: bool) -> None:
+    if SESSION_LOG_FILE.exists() and SESSION_LOG_FILE.read_text().strip():
+        print("[recovery] Leftover session-log.txt found — flushing from crashed prior session.")
+        try:
+            _push_session_log(env, dry_run, recovered=True)
+        except Exception as exc:
+            print(f"[recovery] Flush failed: {exc}", file=sys.stderr)
+
+
+def _retry_pending_pushes(env: dict, dry_run: bool) -> None:
+    if not PENDING_PUSHES_FILE.exists():
+        return
+    try:
+        pending = json.loads(PENDING_PUSHES_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return
+    if not pending:
+        return
+    remaining = []
+    for item in pending:
+        try:
+            _execute_pending_push(env, item, dry_run)
+        except Exception as exc:
+            print(f"[pending] Retry failed for {item.get('key')}: {exc}", file=sys.stderr)
+            remaining.append(item)
+    if not dry_run:
+        if remaining:
+            PENDING_PUSHES_FILE.write_text(json.dumps(remaining, indent=2))
+        else:
+            PENDING_PUSHES_FILE.unlink(missing_ok=True)
+
+
+def _execute_pending_push(env: dict, item: dict, dry_run: bool) -> None:
+    base_url = env["BASEROW_BASE_URL"]
+    token = env["BASEROW_TOKEN"]
+    if not dry_run:
+        if item.get("row_id"):
+            patch_row(base_url, item["table_id"], item["row_id"], token, item["data"])
+        else:
+            create_row(base_url, item["table_id"], token, item["data"])
+
+
+# ---------------------------------------------------------------------------
+# Stop subcommand (placeholder — added in Task 5)
+# ---------------------------------------------------------------------------
+
+
+def _push_session_log(env: dict, dry_run: bool, recovered: bool = False) -> None:
+    pass
+
+
 def main():
     parser = argparse.ArgumentParser(description="Baserow <-> Claude Code memory sync")
     parser.add_argument("command", choices=["pull", "stop"])
@@ -227,7 +345,7 @@ def main():
     env = load_env(HOOKS_DIR / ".env")
 
     if args.command == "pull":
-        print("pull: not yet implemented")
+        do_pull(env, dry_run=args.dry_run)
     elif args.command == "stop":
         print("stop: not yet implemented")
 

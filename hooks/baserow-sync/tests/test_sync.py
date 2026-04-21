@@ -278,3 +278,173 @@ def test_create_row_posts_to_table():
         result = sync.create_row("https://example.com", 668, "tok", {"key": "new-key"})
     assert "/api/database/rows/table/668/" in mock_post.call_args[0][0]
     assert result["id"] == 99
+
+
+# --- do_pull ---
+
+FAKE_JADE_ROW = {
+    "id": 4,
+    "key": "03-baserow-schema",
+    "title": "Baserow Schema",
+    "category": {"id": 2848, "value": "schema", "color": "yellow"},
+    "version": 10,
+    "last_updated": "2026-04-01",
+    "content": "## Schema content",
+    "active": True,
+}
+
+FAKE_PLANTS_ROW = {
+    "id": 1,
+    "key": "project_plant_website",
+    "title": "Plant Website",
+    "category": {"id": 3731, "value": "state", "color": "green"},
+    "version": 2,
+    "last_updated": "2026-04-21",
+    "content": "Camera flow info",
+    "active": True,
+}
+
+
+def test_do_pull_writes_jade_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, "PULL_DIR", tmp_path / "baserow_pull")
+    monkeypatch.setattr(sync, "MANIFEST_FILE", tmp_path / "baserow_pull" / ".manifest.json")
+    monkeypatch.setattr(sync, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "state" / "session-log.txt")
+    monkeypatch.setattr(sync, "PENDING_PUSHES_FILE", tmp_path / "state" / "pending-pushes.json")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "PLANTS_TABLE_ID": "815",
+    }
+
+    with patch("sync.list_rows") as mock_list:
+        mock_list.side_effect = [
+            [FAKE_JADE_ROW],  # jade call
+            [FAKE_PLANTS_ROW],  # plants call
+        ]
+        sync.do_pull(env)
+
+    jade_file = tmp_path / "baserow_pull" / "jade_ops_03-baserow-schema.md"
+    assert jade_file.exists()
+    assert "source: jade_ops_baserow" in jade_file.read_text()
+    assert "## Schema content" in jade_file.read_text()
+
+
+def test_do_pull_writes_plants_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, "PULL_DIR", tmp_path / "baserow_pull")
+    monkeypatch.setattr(sync, "MANIFEST_FILE", tmp_path / "baserow_pull" / ".manifest.json")
+    monkeypatch.setattr(sync, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "state" / "session-log.txt")
+    monkeypatch.setattr(sync, "PENDING_PUSHES_FILE", tmp_path / "state" / "pending-pushes.json")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "PLANTS_TABLE_ID": "815",
+    }
+
+    with patch("sync.list_rows") as mock_list:
+        mock_list.side_effect = [[FAKE_JADE_ROW], [FAKE_PLANTS_ROW]]
+        sync.do_pull(env)
+
+    plants_file = tmp_path / "baserow_pull" / "plants_project_plant_website.md"
+    assert plants_file.exists()
+
+
+def test_do_pull_writes_manifest(tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, "PULL_DIR", tmp_path / "baserow_pull")
+    monkeypatch.setattr(sync, "MANIFEST_FILE", tmp_path / "baserow_pull" / ".manifest.json")
+    monkeypatch.setattr(sync, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "state" / "session-log.txt")
+    monkeypatch.setattr(sync, "PENDING_PUSHES_FILE", tmp_path / "state" / "pending-pushes.json")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "PLANTS_TABLE_ID": "815",
+    }
+
+    with patch("sync.list_rows") as mock_list:
+        mock_list.side_effect = [[FAKE_JADE_ROW], []]
+        sync.do_pull(env)
+
+    manifest = json.loads((tmp_path / "baserow_pull" / ".manifest.json").read_text())
+    assert "03-baserow-schema" in manifest
+    entry = manifest["03-baserow-schema"]
+    assert entry["table"] == 668
+    assert entry["row_id"] == 4
+    assert entry["version"] == 10
+
+
+def test_do_pull_skips_inactive_rows(tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, "PULL_DIR", tmp_path / "baserow_pull")
+    monkeypatch.setattr(sync, "MANIFEST_FILE", tmp_path / "baserow_pull" / ".manifest.json")
+    monkeypatch.setattr(sync, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "state" / "session-log.txt")
+    monkeypatch.setattr(sync, "PENDING_PUSHES_FILE", tmp_path / "state" / "pending-pushes.json")
+
+    inactive_row = {**FAKE_JADE_ROW, "active": False}
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "PLANTS_TABLE_ID": "815",
+    }
+
+    with patch("sync.list_rows") as mock_list:
+        mock_list.side_effect = [[inactive_row], []]
+        sync.do_pull(env)
+
+    assert not (tmp_path / "baserow_pull" / "jade_ops_03-baserow-schema.md").exists()
+
+
+def test_do_pull_deletes_orphan_files(tmp_path, monkeypatch):
+    pull_dir = tmp_path / "baserow_pull"
+    pull_dir.mkdir(parents=True)
+    orphan = pull_dir / "jade_ops_old-deleted-row.md"
+    orphan.write_text("stale content")
+
+    monkeypatch.setattr(sync, "PULL_DIR", pull_dir)
+    monkeypatch.setattr(sync, "MANIFEST_FILE", pull_dir / ".manifest.json")
+    monkeypatch.setattr(sync, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "state" / "session-log.txt")
+    monkeypatch.setattr(sync, "PENDING_PUSHES_FILE", tmp_path / "state" / "pending-pushes.json")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "PLANTS_TABLE_ID": "815",
+    }
+
+    with patch("sync.list_rows") as mock_list:
+        mock_list.side_effect = [[], []]
+        sync.do_pull(env)
+
+    assert not orphan.exists()
+
+
+def test_do_pull_dry_run_writes_no_files(tmp_path, monkeypatch):
+    pull_dir = tmp_path / "baserow_pull"
+    monkeypatch.setattr(sync, "PULL_DIR", pull_dir)
+    monkeypatch.setattr(sync, "MANIFEST_FILE", pull_dir / ".manifest.json")
+    monkeypatch.setattr(sync, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(sync, "SESSION_LOG_FILE", tmp_path / "state" / "session-log.txt")
+    monkeypatch.setattr(sync, "PENDING_PUSHES_FILE", tmp_path / "state" / "pending-pushes.json")
+
+    env = {
+        "BASEROW_BASE_URL": "https://example.com",
+        "BASEROW_TOKEN": "tok",
+        "JADE_OPS_TABLE_ID": "668",
+        "PLANTS_TABLE_ID": "815",
+    }
+
+    with patch("sync.list_rows") as mock_list:
+        mock_list.side_effect = [[FAKE_JADE_ROW], []]
+        sync.do_pull(env, dry_run=True)
+
+    assert not pull_dir.exists()
