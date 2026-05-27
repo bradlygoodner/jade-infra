@@ -639,8 +639,8 @@ class HealthMonitor:
         ("/", "root filesystem"),
         ("/docker/volumes/propertyops", "Baserow data"),
     ]
-    DISK_WARN_PERCENT = 80
-    DISK_CRITICAL_PERCENT = 90
+    DISK_WARN_PERCENT = 70
+    DISK_CRITICAL_PERCENT = 85
     _disk_alert_sent: dict = {}
 
     def check_disk_space(self):
@@ -677,6 +677,54 @@ class HealthMonitor:
             except OSError as e:
                 logger.warning("Could not check disk space for %s: %s", path, e)
 
+    # ── Container writable layer monitoring ───────────────────────────────────
+
+    CONTAINER_LAYER_WARN_GB = 1.0
+    CONTAINER_LAYER_CRITICAL_GB = 5.0
+    _layer_alert_sent: dict = {}
+
+    def check_container_layers(self):
+        """Alert if any container's writable (overlay) layer grows unexpectedly large."""
+        names = [svc.container_name for svc in self.services]
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "--size"] + names,
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                return
+            containers = json.loads(result.stdout)
+        except Exception as e:
+            logger.warning("Container layer size check failed: %s", e)
+            return
+
+        for container in containers:
+            name = container["Name"].lstrip("/")
+            size_rw = container.get("SizeRw", 0) or 0
+            size_gb = size_rw / (1024 ** 3)
+
+            if size_gb >= self.CONTAINER_LAYER_CRITICAL_GB:
+                level = "critical"
+            elif size_gb >= self.CONTAINER_LAYER_WARN_GB:
+                level = "warning"
+            else:
+                self._layer_alert_sent.pop(name, None)
+                continue
+
+            if self._layer_alert_sent.get(name) == level:
+                continue
+
+            self._layer_alert_sent[name] = level
+            msg = (f"Container writable layer {level}: {name} overlay is "
+                   f"{size_gb:.1f} GB. Possible runaway logs, core dumps, or "
+                   f"temp files in container filesystem.")
+            logger.warning(msg)
+            self.notifications.notify(
+                service=name, status=level,
+                event_type="emergency" if level == "critical" else "failure_detected",
+                message=msg, check_type="disk",
+            )
+
     def run(self):
         """Main monitoring loop. Runs until interrupted."""
         logger.info("PropertyOps Health Monitor starting...")
@@ -704,6 +752,10 @@ class HealthMonitor:
                     self.check_disk_space()
                 except Exception as e:
                     logger.error("Unexpected error checking disk space: %s", e)
+                try:
+                    self.check_container_layers()
+                except Exception as e:
+                    logger.error("Unexpected error checking container layers: %s", e)
 
             self.notifications.send_heartbeat()
 
