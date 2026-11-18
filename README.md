@@ -10,7 +10,7 @@ jade-ops/
 ├── scripts/        # backup.sh, upgrade.sh, rollback.sh, healthmonitor.py
 ├── hooks/          # Claude Code hooks (baserow-sync)
 ├── systemd/        # healthmonitor service unit (installed via install-systemd.sh)
-└── docs/           # superpowers specs + plans, workflow runbooks
+└── docs/           # specs + plans, workflow runbooks
 ```
 
 Runtime state (DBs, logs, backups, container volumes) lives **outside** this repo — intentional, so git never tracks it:
@@ -85,6 +85,6 @@ cd /opt/jade-infra/hooks/baserow-sync && python3 -m pytest tests/ -v
 
 ## Related reading
 
-- `docs/superpowers/specs/` — design documents
-- `docs/superpowers/plans/` — implementation plans, including tonight's gunicorn-recycling + FDMonitor work (`2026-04-21-baserow-fd-leak-prevention.md`)
+- `docs/specs/` — design documents
+- `docs/plans/` — implementation plans, including tonight's gunicorn-recycling + FDMonitor work (`2026-04-21-baserow-fd-leak-prevention.md`)
 - `docs/n8n-workflows/` — workflow-level runbooks (health-alert workflow, etc.)

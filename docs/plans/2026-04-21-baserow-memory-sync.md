@@ -1,6 +1,6 @@
 # Baserow Memory Sync Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement two-way sync between Claude Code's local auto-memory directory and the Baserow `claude-context` tables (668 jade-ops, 815 plants) via Claude Code hooks and direct Baserow REST API calls.
 
@@ -1322,8 +1322,7 @@ Current content of `/root/.claude/settings.json`:
 {
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
+    "context7@claude-plugins-official": true
   },
   "model": "sonnet"
 }
@@ -1334,8 +1333,7 @@ Replace with:
 {
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
+    "context7@claude-plugins-official": true
   },
   "model": "sonnet",
   "hooks": {

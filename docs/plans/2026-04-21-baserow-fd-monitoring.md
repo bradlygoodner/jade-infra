@@ -1,6 +1,6 @@
 # Baserow FD-Count Monitoring Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a proactive file-descriptor probe to `healthmonitor.py` so baserow FD exhaustion is detected (and recovered) before users see HTTP 500s on the upload codepath.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3 stdlib only (no new runtime deps); pytest for tests; existing systemd service (`propertyops-healthmonitor.service`); existing notification stack (n8n webhook → Pushover → Uptime Kuma).
 
-**Source spec:** `docs/superpowers/specs/2026-04-21-baserow-fd-monitoring-design.md` (commit `5ecc22f`)
+**Source spec:** `docs/specs/2026-04-21-baserow-fd-monitoring-design.md` (commit `5ecc22f`)
 
 **Pre-execution decisions for the operator:**
 1. **Branching.** This plan was not produced in a worktree. Recommend creating a branch before executing (`git checkout -b fd-monitoring`) so the work is reviewable separately from any other in-flight changes on master.
@@ -1423,7 +1423,7 @@ This is a manual deploy + verification task. No code changes — but it MUST hap
 Append to `/root/docker/scripts/config.env` (preserve existing content; add at the bottom):
 
 ```
-# FD monitoring (baserow only in v1) — see docs/superpowers/specs/2026-04-21-baserow-fd-monitoring-design.md
+# FD monitoring (baserow only in v1) — see docs/specs/2026-04-21-baserow-fd-monitoring-design.md
 FD_WARN_PERCENT=70
 FD_CRITICAL_PERCENT=90
 ```
