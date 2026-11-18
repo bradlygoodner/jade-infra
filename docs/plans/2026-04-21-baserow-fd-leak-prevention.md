@@ -1,6 +1,6 @@
 # Baserow FD Leak Prevention — Gunicorn Worker Recycling
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Prevent Baserow's file-descriptor exhaustion by recycling gunicorn workers before the Pillow FD leak can accumulate, and re-calibrate FDMonitor as a safety net rather than the primary defense.
 
@@ -32,7 +32,7 @@
 | `docker/scripts/tests/test_healthmonitor.py:337-348` | Update assertions: 70→40, 90→60 |
 | `docker/scripts/healthmonitor.py:155-156` | Update hardcoded defaults: 70→40, 90→60 |
 | `docker/scripts/config.env:56-57` | Update live values: 70→40, 90→60 |
-| `docs/superpowers/specs/2026-04-21-baserow-fd-monitoring-design.md` | Append worker recycling section |
+| `docs/specs/2026-04-21-baserow-fd-monitoring-design.md` | Append worker recycling section |
 | `/root/.claude/projects/-root/memory/project_baserow_fd_leak.md` | Update mitigations block |
 
 ---
@@ -279,12 +279,12 @@ With worker recycling in place, the steady-state FD count stays under 10% of sof
 ## Task 3: Update docs and memory
 
 **Files:**
-- Append: `docs/superpowers/specs/2026-04-21-baserow-fd-monitoring-design.md`
+- Append: `docs/specs/2026-04-21-baserow-fd-monitoring-design.md`
 - Rewrite mitigations section: `/root/.claude/projects/-root/memory/project_baserow_fd_leak.md`
 
 - [ ] **Step 1: Append worker recycling section to the spec**
 
-  Open `docs/superpowers/specs/2026-04-21-baserow-fd-monitoring-design.md` and append the following at the end:
+  Open `docs/specs/2026-04-21-baserow-fd-monitoring-design.md` and append the following at the end:
 
   ```markdown
   ---
@@ -351,7 +351,7 @@ With worker recycling in place, the steady-state FD count stays under 10% of sof
 - [ ] **Step 3: Commit**
 
   ```bash
-  git add "docs/superpowers/specs/2026-04-21-baserow-fd-monitoring-design.md" \
+  git add "docs/specs/2026-04-21-baserow-fd-monitoring-design.md" \
           "/root/.claude/projects/-root/memory/project_baserow_fd_leak.md"
   git commit -m "docs: record worker recycling fix and threshold recalibration
 

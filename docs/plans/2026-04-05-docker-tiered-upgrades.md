@@ -1,6 +1,6 @@
 # Docker Tiered Upgrade System — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Automated, tiered Docker upgrade system with detection, backup, rollback, and multi-channel notifications for the PropertyOps production stack.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Docker Compose, Watchtower, Bash, cron, n8n (webhooks + workflows), Pushover, Baserow, Google Drive
 
-**Spec:** `docs/superpowers/specs/2026-04-05-docker-tiered-upgrades-design.md`
+**Spec:** `docs/specs/2026-04-05-docker-tiered-upgrades-design.md`
 
 ---
 

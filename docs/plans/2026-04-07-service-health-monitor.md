@@ -1,6 +1,6 @@
 # Service Health Monitor Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Python health monitor that checks all Docker services every 30s, auto-restarts on failure, and sends notifications through n8n → Pushover → Uptime Kuma tiers.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.10 (stdlib only), systemd, Docker Compose CLI, n8n webhooks, Pushover API, Uptime Kuma push monitors
 
-**Spec:** `docs/superpowers/specs/2026-04-07-service-health-monitor-design.md`
+**Spec:** `docs/specs/2026-04-07-service-health-monitor-design.md`
 
 ---
 
@@ -1171,7 +1171,7 @@ Create `/etc/systemd/system/propertyops-healthmonitor.service`:
 ```ini
 [Unit]
 Description=PropertyOps Service Health Monitor
-Documentation=file:///root/docs/superpowers/specs/2026-04-07-service-health-monitor-design.md
+Documentation=file:///root/docs/specs/2026-04-07-service-health-monitor-design.md
 After=docker.service
 Wants=docker.service
 
